@@ -1,0 +1,112 @@
+# Q1.1
+GET /
+# Version: 9.5.4
+
+GET _cat/nodes?v
+
+# un seul noeud
+
+GET _cat/indices?v&expand_wildcards=all
+
+# les index commencent par un point parce que ceux sont les index internes, seulement révélé avec expand_wildcards=all
+
+# Q1.2
+
+PUT essai/_doc/1
+{ "titre": "Data Engineer", "ville": "Montpellier" }
+
+GET essai/_doc/1
+
+POST essai/_update/1
+{ "doc": { "contrat": "CDI" } }
+
+POST essai/_doc
+{ "titre": "DevOps", "ville": "Lyon" }
+
+DELETE essai/_doc/1
+
+# R: version évolue avec l'id. Même si on supprime un document, si on donne un nouveau le même id, 
+# la version de cette id augment encore.
+# Avec POST essai/_doc, c'est ES qui choisit l'id.
+# Non essai n'existait pas avant le premier PUT.
+
+# Q1.3
+PUT essai2/_doc/1
+{ "salaire": "45000", "publication": "2026-08-02", "actif": "true" }
+
+PUT essai2/_doc/2
+{ "salaire": 52000 }
+
+GET essai2/_mapping
+
+# Salaire gets type "text", et donc la clé salaire de la deuxieme doc est maintenant text, et donc 
+# un tri ou un filtre sur salaire ne va pas fonctionner comme prévu.
+# publication gets type "date"
+# 
+
+# Q1.4
+PUT offres
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "id": {
+        "type": "keyword"
+    },
+      "entreprise": {
+        "type": "keyword"
+      },
+      "ville": {
+        "type": "keyword"
+      },
+      "contrat": {
+        "type": "keyword"
+      },
+      "teletravail": {
+        "type": "keyword"
+      },
+      "titre": {
+        "type": "text",
+        "analyzer": "french",
+        "fields": {
+          "brut": {
+            "type": "keyword"
+          }
+        }
+      },
+      "description": {
+        "type": "text",
+        "analyzer": "french"
+      },
+      "competences": {
+        "type": "keyword",
+        "fields": {
+          "texte": {
+            "type": "text",
+            "analyzer": "french"
+          }
+        }
+      },
+      "localisation": {
+        "type": "geo_point"
+      },
+      "experience_annees": {
+        "type": "integer"
+      },
+      "salaire_min": {
+        "type": "integer"
+      },
+      "salaire_max": {
+        "type": "integer"
+      },
+      "date_publication": {
+        "type": "date"
+      }
+    }
+  }
+}
+

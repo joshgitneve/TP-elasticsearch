@@ -1,0 +1,429 @@
+{
+  "info": {
+    "name": "TP Elasticsearch",
+    "description": "Requêtes de base vers le cluster Elasticsearch du TP (docker compose). Sélectionner l'environnement « TP Elasticsearch (local) » et renseigner es_password.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "basic",
+    "basic": [
+      {
+        "key": "username",
+        "value": "{{es_user}}",
+        "type": "string"
+      },
+      {
+        "key": "password",
+        "value": "{{es_password}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test(\"Statut 2xx\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Cluster",
+      "item": [
+        {
+          "name": "Info cluster",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{es_url}}/",
+              "host": [
+                "{{es_url}}"
+              ],
+              "path": [
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Santé du cluster",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{es_url}}/_cluster/health",
+              "host": [
+                "{{es_url}}"
+              ],
+              "path": [
+                "_cluster",
+                "health"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Liste des index",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{es_url}}/_cat/indices?v&s=index",
+              "host": [
+                "{{es_url}}"
+              ],
+              "path": [
+                "_cat",
+                "indices"
+              ],
+              "query": [
+                {
+                  "key": "v",
+                  "value": ""
+                },
+                {
+                  "key": "s",
+                  "value": "index"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Index",
+      "item": [
+        {
+          "name": "Créer l'index",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{es_url}}/{{index}}",
+              "host": [
+                "{{es_url}}"
+              ],
+              "path": [
+                "{{index}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"settings\": {\n    \"number_of_shards\": 1,\n    \"number_of_replicas\": 0\n  },\n  \"mappings\": {\n    \"properties\": {\n      \"id\": {\n        \"type\": \"keyword\"\n      }\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Voir le mapping",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{es_url}}/{{index}}/_mapping",
+              "host": [
+                "{{es_url}}"
+              ],
+              "path": [
+                "{{index}}",
+                "_mapping"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Supprimer l'index",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{es_url}}/{{index}}",
+              "host": [
+                "{{es_url}}"
+              ],
+              "path": [
+                "{{index}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Documents",
+      "item": [
+        {
+          "name": "Indexer un document",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{es_url}}/{{index}}/_doc/TEST-00001?refresh=true",
+              "host": [
+                "{{es_url}}"
+              ],
+              "path": [
+                "{{index}}",
+                "_doc",
+                "TEST-00001"
+              ],
+              "query": [
+                {
+                  "key": "refresh",
+                  "value": "true"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"TEST-00001\",\n  \"titre\": \"Développeur Python\",\n  \"entreprise\": \"Postman Labs\",\n  \"description\": \"Offre de test créée depuis Postman.\",\n  \"competences\": [\n    \"Python\",\n    \"Docker\"\n  ],\n  \"ville\": \"Lyon\",\n  \"localisation\": {\n    \"lat\": 45.764,\n    \"lon\": 4.8357\n  },\n  \"contrat\": \"CDI\",\n  \"teletravail\": \"partiel\",\n  \"experience_annees\": 2,\n  \"date_publication\": \"2026-09-29\",\n  \"salaire_min\": 42000,\n  \"salaire_max\": 50000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Lire un document",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{es_url}}/{{index}}/_doc/TEST-00001",
+              "host": [
+                "{{es_url}}"
+              ],
+              "path": [
+                "{{index}}",
+                "_doc",
+                "TEST-00001"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Bulk (NDJSON)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-ndjson"
+              }
+            ],
+            "url": {
+              "raw": "{{es_url}}/_bulk?refresh=true",
+              "host": [
+                "{{es_url}}"
+              ],
+              "path": [
+                "_bulk"
+              ],
+              "query": [
+                {
+                  "key": "refresh",
+                  "value": "true"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"index\": {\"_index\": \"{{index}}\", \"_id\": \"TEST-00002\"}}\n{\"id\": \"TEST-00002\", \"titre\": \"Data Engineer Spark\", \"entreprise\": \"Postman Labs\", \"description\": \"Offre de test créée depuis Postman.\", \"competences\": [\"Python\", \"Docker\"], \"ville\": \"Paris\", \"localisation\": {\"lat\": 45.764, \"lon\": 4.8357}, \"contrat\": \"CDI\", \"teletravail\": \"partiel\", \"experience_annees\": 2, \"date_publication\": \"2026-09-29\", \"salaire_min\": 42000, \"salaire_max\": 50000}\n{\"index\": {\"_index\": \"{{index}}\", \"_id\": \"TEST-00003\"}}\n{\"id\": \"TEST-00003\", \"titre\": \"Ingénieur DevOps Kubernetes\", \"entreprise\": \"Postman Labs\", \"description\": \"Offre de test créée depuis Postman.\", \"competences\": [\"Python\", \"Docker\"], \"ville\": \"Montpellier\", \"localisation\": {\"lat\": 45.764, \"lon\": 4.8357}, \"contrat\": \"CDI\", \"teletravail\": \"partiel\", \"experience_annees\": 2, \"date_publication\": \"2026-09-29\", \"salaire_min\": 42000, \"salaire_max\": 50000}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Compter les documents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{es_url}}/{{index}}/_count",
+              "host": [
+                "{{es_url}}"
+              ],
+              "path": [
+                "{{index}}",
+                "_count"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Supprimer un document",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{es_url}}/{{index}}/_doc/TEST-00001",
+              "host": [
+                "{{es_url}}"
+              ],
+              "path": [
+                "{{index}}",
+                "_doc",
+                "TEST-00001"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Recherche",
+      "item": [
+        {
+          "name": "match_all",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{es_url}}/{{index}}/_search",
+              "host": [
+                "{{es_url}}"
+              ],
+              "path": [
+                "{{index}}",
+                "_search"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": {\n    \"match_all\": {}\n  },\n  \"size\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "match sur titre",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{es_url}}/{{index}}/_search",
+              "host": [
+                "{{es_url}}"
+              ],
+              "path": [
+                "{{index}}",
+                "_search"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": {\n    \"match\": {\n      \"titre\": \"développeur python\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "bool + filtre",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{es_url}}/{{index}}/_search",
+              "host": [
+                "{{es_url}}"
+              ],
+              "path": [
+                "{{index}}",
+                "_search"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": {\n    \"bool\": {\n      \"must\": [\n        {\n          \"match\": {\n            \"description\": \"python\"\n          }\n        }\n      ],\n      \"filter\": [\n        {\n          \"term\": {\n            \"contrat\": \"CDI\"\n          }\n        }\n      ]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Agrégation par ville",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{es_url}}/{{index}}/_search",
+              "host": [
+                "{{es_url}}"
+              ],
+              "path": [
+                "{{index}}",
+                "_search"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"size\": 0,\n  \"aggs\": {\n    \"par_ville\": {\n      \"terms\": {\n        \"field\": \"ville\",\n        \"size\": 10\n      }\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
