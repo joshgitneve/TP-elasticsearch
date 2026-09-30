@@ -1,0 +1,194 @@
+Q 3.1
+Questions : quels mots disparaissent avec french ? 
+Les mots vides (les, sur, des)
+
+Que devient l'analyse ? - normalisé -> "analys"
+
+Analysez « donnée » puis « données » avec chaque analyseur : obtenez-vous le même terme ? 
+L'analyser standard ne coup rien. L'analyzer french normalise (coupe toujours à la racine, 
+retire des élisions, mets en miniscule etc.), ici données et donnée deviennent tout deux "done" .
+
+Qu'en déduisez-vous pour la recherche ?
+
+Pour la recherche, l'analyzer french va toujours normaliser pour l'indexation et pour la recherche, donc il est plus 
+probable de trouver des match que si l'analyzer standard est utilisé. Keyword devrait etre utilisé seulement sur des
+champs où on va donner une liste de choix, pas où on laisse l'utilisateur taper ce qu'il veut librement, car des Keywords 
+guardent la forme précise du mot dans les documents. 
+
+Avec l'analyzer french, on trouves surement davantage de documents pertinents, mais aussi quelques faux positifs: deux mots 
+différents peuvent etre réduits à la même forme. En recherche d'information, ils parlent de gagner en rappel (on rate moins 
+de documents pertinents) au risque de perdre en précision.
+
+3.2 
+GET offres/_search
+{ "query": { 
+    "match": { 
+        "description": "projets bancaires" 
+        } 
+    } 
+}
+
+Ici, il n'y a pas de place pour une option. Pour en ajouter, la valeur du champ devient un objet, et le texte passe dans une 
+clé query:
+
+GET offres/_search
+{
+  "query": {
+    "match": {
+      "description": {
+        "query": "projets bancaires",
+        "operator": "and"
+      }
+    }
+  }
+}
+
+Maintenant des résultats doivent contenir les deux mots projets et bancaires, et c'est logique qu'il y'en a moins de résultats.
+
+
+GET offres/_search
+{ "query": { "term": { "ville": "paris" } } }
+
+GET offres/_search
+{ "query": { "term": { "titre": "Data Engineer Senior" } } }
+
+IMPORTANT: le type de requete décide de ce que devient la recherche. Le mapping décide les tokens qui apparaissent dans l'index inversé.
+
+- term : valeur est prise telle quelle, quel que soit le champ. term ne regarde jamais le mapping pour transformer ta recherche.
+- match : valeur passe par l'analyseur du champ. match s'adapte au mapping.
+
+Les quatre combinaisons
+	Champ keyword	                                                                Champ text (french)
+term	✅ Égalité exacte, majuscules comprises.                ❌ Presque toujours 0 résultat : ta valeur brute ne correspond pas 
+        C'est l'usage prévu.	                                   aux termes découpés et normalisés. C'est ton cas « Data Engineer Senior ».
+match	⚠️ Se comporte comme term : l'analyseur                 ✅ Ta recherche est découpée et normalisée
+        d'un keyword ne transforme rien.	                       comme les documents. C'est l'usage prévu.
+
+Donc, avec term, on cherche une valeur exacte, sans aucune transformation, dans le champ indiqué. Le mapping a décidé à l'indexation quels termes 
+existent dans ce champ. Le type de requête décide à la recherche si ma valeur est transformée (match) ou non (term). Il y a un résultat seulement
+ si les deux côtés produisent le même terme.
+
+3.3. 
+GET /_search
+{
+  "query": {
+    "multi_match" : {
+      "query" : "kubernetes terraform",
+      "fields" : [ "titre^3", "competences.texte", "description" ],
+      "fuzziness": "AUTO"
+    }
+  }
+}
+fuzziness: AUTO accorde un nombre de fautes selon la longueur du mot. 
+_score et l'ordre des résultats : Avec titre^3, les offres qui ont Kubernetes ou Terraform dans le titre devraient remonter en tête.
+
+3.4.
+POST offres/_search
+{
+  "query": { # on peut rajouter "explain": true ici avant "query" -> _explanation détaille (dans les résultats) le calcul de chaque score
+    "bool": {
+      "must": {
+        "multi_match": {
+          "query": "données",
+          "fields": [
+            "titre",
+            "description"
+          ]
+        }
+      },
+      "filter": [
+        {"term": {"contrat": "CDI"}},
+        {"terms": {"ville": ["Montpellier","Toulouse"]}},
+        {"range": {"salaire_max": {"gte": 50000}}}
+      ],
+      "must_not": {
+        "term": {
+          "teletravail": "aucun"
+        }
+      },
+      "should": {
+        "term": {
+          "competences": "Elasticsearch"
+        }
+      }
+    }
+  }
+}
+
+Questions : comparez les _score avec et sans le bloc should. 
+
+Pourquoi placer les critères exacts dans filter plutôt que dans must (deux raisons) ?
+Raison 1: un critère exact n'a pas de "degré de pertinence"
+must et should influencent le score; filter et must_not non. Et seulement should n'élimine pas les docs, les autres oui.
+
+En plaçant les critères exacts dans filter, le classement ne dépend que de :
+must : à quel point l'offre parle de « données » ;
+should : le bonus Elasticsearch.
+
+Raison 2 : la performance
+Pas de calcul de score : pour un filtre, Elasticsearch vérifie seulement si le document correspond. C'est moins de travail par document.
+Mise en cache : comme la réponse est un simple oui ou non, Elasticsearch peut garder en mémoire le résultat d'un filtre fréquent 
+("quelles offres sont en CDI ?") et le réutiliser pour les requêtes suivantes. Un score ne peut pas être réutilisé ainsi, car il 
+dépend de la requête entière.
+
+3.5 Geo-localisation
+Listez les offres à moins de 20 km de Montpellier (43.6108, 3.8767), triées de la plus proche à la plus lointaine :
+GET offres/_search
+{
+  "query": { "bool": { "filter": { "geo_distance": {
+    "distance": "20km", "localisation": { "lat": 43.6108, "lon": 3.8767 } } } } },
+  "sort": [ { "_geo_distance": {
+    "localisation": { "lat": 43.6108, "lon": 3.8767 }, "order": "asc", "unit": "km" } } ]
+}
+
+3.6 Pagination
+ 
+POST offres/_search
+{
+  "from": 5, 
+  "size": 5, 
+  "query": { 
+    "bool": {
+      "must": {
+        "multi_match": {
+          "query": "données",
+          "fields": [
+            "titre",
+            "description"
+          ]
+        }
+      },
+      "filter": [
+        {"term": {"contrat": "CDI"}},
+        {"terms": {"ville": ["Montpellier","Toulouse"]}},
+        {"range": {"salaire_max": {"gte": 50000}}}
+      ],
+      "must_not": {
+        "term": {
+          "teletravail": "aucun"
+        }
+      },
+      "should": {
+        "term": {
+          "competences": "Elasticsearch"
+        }
+      }
+    }
+  }
+}
+
+Question : pourquoi from + size est-il limité à 10 000 par défaut,  ?
+Each shard doesn't know the global positions, so to return results 9,991–10,000 each shard must 
+send its top 10,000, which are then merged and mostly thrown away, using lots of memory and decreasing 
+performance, and possibly causing node failure. search_after is cheaper because each shard only sends 
+the number of hits defined by "size".
+The from + size = 10000 limit stops users from trying to load huge numbers of documents into memory. 
+
+et quelle API utiliser au-delà ?
+search_after avec un point in time (PIT) - search_after is a sort of bookmark, provided by a sort on
+each page of hits, and the PIT is a photo of the index at a precise moment, kept open for the period 
+during which we want to query the index and then closed so that the index can be cleaned up again
+(deletions, additions, updates, which are frozen in the PIT view while the PIT is open).
+
+
+
