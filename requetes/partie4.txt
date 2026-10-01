@@ -1,1 +1,36 @@
 4.
+Paris a le salaire moyen le plus élevés.
+Sur combien d'offres la moyenne est-elle réellement calculée (rappel : champ absent pour certains contrats) ? 
+pour cette information je rajoute une aggregation à la requete: "villes_inclus": {"value_count": { "field": "salaire_min"}},
+au meme niveau que par_ville, pour avoir value_count sur toutes les documents inclus (5000). 
+
+GET offres/_search
+{
+  "size": 0,
+  "aggs": {"villes_inclus": {"value_count": { "field": "salaire_min"}},
+    "par_ville": {
+      "terms": { "field": "ville", "size": 12, "order": { "salaire_moyen": "desc" } },
+      "aggs": { "salaire_moyen": { "avg": { "field": "salaire_min" } }}
+      }
+    }
+}
+
+Remplacez ville par titre : quelle erreur, et comment la corriger ?
+"illegal_argument_exception" - "Text fields are not optimised for operations that require per-document field data like aggregations and sorting"
+Could use titre.brut (la version type:keyword du titre) but would then have to only use documents where there is a salary, else the top 12 include 
+job titles for which there is no salary.
+
+GET offres/_search
+{"query": { "exists": { "field": "salaire_min" } },
+  "size": 0,
+  "aggs": { "par_titre": {
+      "terms": { "field": "titre.brut", "size": 12, "order": { "salaire_moyen": "desc" } },
+      "aggs": { "salaire_moyen": { "avg": { "field": "salaire_min" } }}
+      }
+    }
+}
+
+Here only documents with a salaire_min are kept and used in the following aggregation.
+
+
+
