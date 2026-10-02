@@ -5,7 +5,7 @@ Les mots vides (les, sur, des)
 Que devient l'analyse ? - normalisé -> "analys"
 
 Analysez « donnée » puis « données » avec chaque analyseur : obtenez-vous le même terme ? 
-L'analyser standard ne coup rien. L'analyzer french normalise (coupe toujours à la racine, 
+L'analyser standard ne normalise rien. L'analyzer french normalise (coupe toujours à la racine, 
 retire des élisions, mets en miniscule etc.), ici données et donnée deviennent tout deux "done" .
 
 Qu'en déduisez-vous pour la recherche ?
@@ -54,6 +54,8 @@ GET offres/_search
 
 IMPORTANT: le type de requete décide de ce que devient la recherche. Le mapping décide les tokens qui apparaissent dans l'index inversé.
 
+Questions to ask yourself: Does the query transform what I typed? match does, term doesn't.
+
 - term : valeur est prise telle quelle, quel que soit le champ. term ne regarde jamais le mapping pour transformer ta recherche.
 - match : valeur passe par l'analyseur du champ. match s'adapte au mapping.
 
@@ -83,6 +85,13 @@ fuzziness: AUTO accorde un nombre de fautes selon la longueur du mot.
 _score et l'ordre des résultats : Avec titre^3, les offres qui ont Kubernetes ou Terraform dans le titre devraient remonter en tête.
 
 3.4.
+Écrivez une seule requête qui renvoie les offres :
+
+dont le titre ou la description parle de « données » (must) ;
+en CDI, à Montpellier ou Toulouse, avec salaire_max ≥ 50 000 (filter) ;
+sans télétravail aucun (must_not) ;
+mieux classées si competences contient Elasticsearch (should).
+
 POST offres/_search
 {
   "query": { # on peut rajouter "explain": true ici avant "query" -> _explanation détaille (dans les résultats) le calcul de chaque score
@@ -142,11 +151,17 @@ GET offres/_search
 }
 
 3.6 Pagination
+
+Reprenez la requête 3.4 : affichez la page 2 par pages de 5 (from, size), limitez _source à titre, entreprise, ville et ajoutez un highlight sur description.
+
+Question : pourquoi from + size est-il limité à 10 000 par défaut, et quelle API utiliser au-delà (search_after avec un point in time) ?
  
 POST offres/_search
 {
   "from": 5, 
-  "size": 5, 
+  "size": 5,
+  "_source": ["titre", "entreprise", "ville"],
+   "highlight": {"fields":{"description": {}}}, 
   "query": { 
     "bool": {
       "must": {
