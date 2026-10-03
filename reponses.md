@@ -104,4 +104,46 @@ Par défaut -> queue.type: memory donc les événement pas encore envoyés sont 
 Pourquoi le document_id de la partie 1 devient-il alors indispensable ? Car at-least-once delivery signifie qu'il pourrait avoir des doublons. Par exemple si des documents sont envoyés mais ES n'a pas eu le temps de fournir la confirmation, ces docs restent dans la queue. Sans le gaurantee fournit par l'id, ces doncuments seraient encore envoyés et stockés dans ES. Avec l'id, ces docs sont simplements écrasés dans ES avec la nouvelle copie.
 
 3.2 
-Questions : quels champs sont extraits ? Sous quel type apparaît http.response.status_code ? Pourquoi timestamp doit-il encore être traité ? Écrivez et testez un motif qui extrait OFF-01468 de l'URL /offres/OFF-01468/postuler.
+Questions : quels champs sont extraits ? 
+
+  "request": 
+  "agent": 
+  "auth": 
+  "ident": 
+  "verb": 
+  "referrer":
+  "response": 
+  "bytes": 
+  "clientip": 
+  "httpversion": 
+  "timestamp": 
+
+Sous quel type apparaît http.response.status_code ? 
+"response"
+
+Pourquoi timestamp doit-il encore être traité ? 
+Parce qu'il n'est pas pour l'instant un vrai objet timestamp de Logstash, mais un string.
+
+Écrivez et testez un motif qui extrait OFF-01468 de l'URL /offres/OFF-01468/postuler.
+Sample data: /offres/OFF-02113/postuler
+Grok pattern: ^/offres/%{OFFRE_ID:offre_id}
+Custommpattern tested in Grok debugger: OFFRE_ID OFF-[0-9]{5}
+Si on enleve des chiffres du sample data, le grok pattern ne match plus.
+
+3.4 
+Questions : combien de documents (attendu : 20 700) et combien d'échecs de grok (attendu : 0) ? 20700 et zero.
+Quel est le nom de l'index caché (backing index) qui contient les données, et que signifie chaque partie de ce nom ? 
+logs-web-default = datastream <type>-<dataset>-<namespace>
+Le premier événement est-il daté du 23/09/2026 à 00:00:39 (+02:00), soit 22:00:39 UTC la veille ? Oui. 
+Quel type a reçu http.response.status_code, et pourquoi est-ce important pour la suite ? Long. Important pour filtrer dans Kibana et des recherches de type group by ex. 2xx (success), 3xx (redirect), 4xx (client error), 5xx (server error) .
+Quel index.mode est utilisé ? logsdb, qui fait que un datastream est crée automatiquement. 
+
+3.5
+Questions : que constatez-vous, et pourquoi le problème ne se posait-il pas pour offres ? 
+Nombre de documents a doublé. sincedb_path => "/dev/null" donc logstash relis tout des le début de generate_access_logs.py. Pour offre l'id était défini pour chaque doc et pas crée à la voler par es, donc les docs étaient remplacés au lieu d'etre recrées. _id n'est pas déterminé pour les logs, donc des logs relu sont de-nouveau crée.
+Peut-on mettre à jour ou remplacer un document dans un data stream ? Non, Data streams sont "append-only". 
+Proposez deux solutions pour pouvoir rejouer ce fichier sans doublon (indice : sincedb, et un _id calculé à partir du contenu de la ligne avec le filtre fingerprint).
+
+Soit (1) on donne sincedb_path un vrai file path, dans le  data volume de Logstash, au lieu de /dev/null, pour que Logstash sait sur restart où il était dans le read et il saute ce qui a été lu déjà, soit (2) on donne un _id a chaque ligne de log calculé sur lui même (fingerprint filter hash). Une ligne relu produit le meme id et datastreams refuse des _ids qui existent déjà. Cela rends le pipeline idempotent.
+
+The difference between the two is that sincedb avoids reading again, but doesn't protect against the bookmark being lost (deleted volume, crash, file renamed), wheras fingerprint protects the index itself, even if the file is read again.
