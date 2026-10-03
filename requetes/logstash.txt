@@ -11,22 +11,5 @@ POST _security/user/logstash_internal
 { "password": "<LOGSTASH_INTERNAL_PASSWORD>", "roles": ["logstash_writer"],
   "full_name": "Logstash - ingestion" }
 
-Questions : pourquoi ne pas utiliser le compte elastic pour Logstash ? 
-R: Pour que les permissions des differents roles soient configurables chacun; un role pour rentrer des logs, un autre pour les analyser.
-Que se passerait-il si le pipeline web tentait d'écrire dans logs-generic-default ? 
-R: Ne peut pas. Les permissions donnent acces à logs-web.* est pas logs-generic-*. 
-Pourquoi le mot de passe est-il transmis par variable d'environnement plutôt qu'écrit dans les fichiers .conf ?
-R: Pour que chacun guard ses codes d'accès secret.
-
-Partie 0:
-Questions : quels champs Logstash a-t-il ajoutés à votre phrase ? 
-R: @version, @timestamp.
-
-Que contient @timestamp : l'heure de quoi ?
-R: l'heure de l'écriture du log.
-À quoi sert l'option --path.data /tmp/essai (indice : un autre Logstash pourrait utiliser le même dossier de données) ?
-R: Il signifie où stocker les logs transformés.  
-
-Partie 1
 
 
