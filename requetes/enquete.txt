@@ -1,0 +1,70 @@
+4.1
+GROUP BY error code:
+FROM logs-web-default
+| STATS nb_requetes = COUNT(*) BY http.response.status_code
+| SORT nb_requetes DESC
+
+GROUP BY methode:
+FROM logs-web-default
+| STATS nb_requetes = COUNT(*) BY http.request.method
+| SORT nb_requetes DESC
+
+AVG nb_requettes par jour
+FROM logs-web-default
+| STATS nb_par_jour = COUNT(*) BY jour = BUCKET(@timestamp, 1 day)
+| STATS moyenne_par_jour = AVG(nb_par_jour)
+
+4.2 
+1.
+FROM logs-web-default
+| WHERE http.response.status_code >= 500
+| STATS erreurs = COUNT(*) BY heure = BUCKET(@timestamp, 1 hour)
+| SORT erreurs DESC
+| LIMIT 10
+
+-> change le fenetre à Sep 28 06:00 à Sep 28 18:00 puis...
+
+FROM logs-web-default
+| WHERE http.response.status_code >= 500
+| STATS erreurs = COUNT(*) BY heure = BUCKET(@timestamp, 5 minute)
+| SORT heure ASC
+
+2. les URL touchées, et celles qui ne l'ont pas été ;
+URLs touchés:
+FROM logs-web-default
+| WHERE @timestamp >= "2026-09-28T12:00:00Z" AND @timestamp < "2026-09-28T12:45:00Z"
+| WHERE http.response.status_code >= 500
+| STATS erreurs = COUNT(*) BY url.original
+| SORT erreurs DESC
+
+pas touchés:
+FROM logs-web-default
+| WHERE @timestamp >= "2026-09-28T12:00:00Z" AND @timestamp < "2026-09-28T12:45:00Z"
+| EVAL est_erreur = CASE(http.response.status_code >= 500, 1, 0)
+| STATS total = COUNT(*), erreurs = SUM(est_erreur) BY url.path
+| SORT erreurs DESC
+
+3. le nombre de réponses en erreur et la durée de l'incident ;
+FROM logs-web-default
+| WHERE @timestamp >= "2026-09-28T12:00:00Z" AND @timestamp < "2026-09-28T12:45:00Z"
+| WHERE http.response.status_code >= 500
+| STATS nb_erreurs = COUNT(*), debut = MIN(@timestamp), fin = MAX(@timestamp)
+| EVAL duree_minutes = DATE_DIFF("minute", debut, fin)
+
+4. le comportement des clients pendant l'incident : le volume de requêtes sur les URL touchées a-t-il changé ? Proposez une explication.
+URLs affected:
+/api/offres?ville=Bordeaux&page=1
+/api/offres?ville=Lyon&page=1
+/api/offres?ville=Lille&page=1
+/api/offres?ville=Paris&page=1
+/api/offres?ville=Nantes&page=1
+/api/offres?ville=Montpellier&page=1
+/api/offres?ville=Toulouse&page=1
+Le volume de requêtes sur les URL touchées a baissé durant cette periode, probablement les clients sont abandonné par frustration des erreurs. Les requettes sur les URLs non-touchés n'ont pas baissés en volume.
+| WHERE @timestamp >= "2026-09-28T12:00:00Z" AND @timestamp < "2026-09-28T12:45:00Z"
+| WHERE url.original  IN ("/api/offres?ville=Bordeaux&page=1", "/api/offres?ville=Lyon&page=1", "/api/offres?ville=Lille&page=1", "/api/offres?ville=Paris&page=1", "/api/offres?ville=Nantes&page=1", "/api/offres?ville=Montpellier&page=1", "/api/offres?ville=Toulouse&page=1")
+| EVAL est_erreur = CASE(http.response.status_code >= 500, 1, 0)
+| STATS requetes = COUNT(*), erreurs = SUM(est_erreur) BY creneau = BUCKET(@timestamp, 5 minutes)
+| SORT creneau ASC
+
+4.3 
