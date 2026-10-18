@@ -68,3 +68,109 @@ Le volume de requêtes sur les URL touchées a baissé durant cette periode, pro
 | SORT creneau ASC
 
 4.3 
+
+l'adresse IP à l'origine d'une rafale de réponses 404 ;
+
+FROM logs-web-default
+| WHERE @timestamp >= ?_tstart AND @timestamp < ?_tend
+| WHERE http.response.status_code == 404
+| STATS nb_404 = COUNT(*) BY source.address
+| SORT nb_404 DESC
+| LIMIT 10
+
+=> 203.0.113.66
+
+le moment et la durée de cette activité ;
+Pour trouver le pique :
+timepicker placé sur toute la semaine:
+FROM logs-web-default
+| WHERE @timestamp >= ?_tstart AND @timestamp < ?_tend
+| WHERE source.address == "203.0.113.66"
+| WHERE http.response.status_code == 404
+| STATS nb = COUNT(*) BY heure = BUCKET(@timestamp, 1 hour)
+| SORT nb DESC
+| LIMIT 5
+
+Puis mets le timepicker sur l'heure contenant le pique.
+FROM logs-web-default
+| WHERE @timestamp >= ?_tstart AND @timestamp < ?_tend
+| WHERE source.address == "203.0.113.66"
+| STATS nb = COUNT(*) BY minute = BUCKET(@timestamp, 1 minute)
+| SORT minute ASC
+
+03:12 - 03:16 Sep 26 2026
+
+les URL demandées : que cherchait ce robot ?
+
+FROM logs-web-default
+| WHERE @timestamp >= ?_tstart AND @timestamp < ?_tend
+| WHERE source.address  == "203.0.113.66"
+| STATS nb = COUNT(*) BY url.original, http.response.status_code
+| SORT nb DESC
+
+/admin, /.git/config, / .env, /phpmyadmin/, /server-status, / wp-login.php, 
+
+son user_agent.original : comment le distinguer d'un navigateur ?
+
+FROM logs-web-default
+| WHERE @timestamp >= ?_tstart AND @timestamp < ?_tend
+| WHERE source.address  == "203.0.113.66"
+| STATS nb = COUNT(*) BY `user_agent`.original
+
+Un robot envoit souvent un petit string ou rien du tout, plus court qu le string envoyé par un vanigateur:
+e.g. Mozilla/5.0 zgrab/0.x vs. Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/… Safari/537.36
+
+La requete suivente trouve les autres IPs qui ont le code 404 en réponse d'un ou plusieurs requettes:
+FROM logs-web-default
+| WHERE @timestamp >= ?_tstart AND @timestamp < ?_tend
+| WHERE http.response.status_code == 404 AND source.address != "203.0.113.66"
+| STATS nb_404 = COUNT(*), nb_ip = COUNT_DISTINCT(source.address), nb_url = COUNT_DISTINCT(url.original)
+
+Combien d'IP et d'URL sont affectés par un 404:
+FROM logs-web-default
+| WHERE @timestamp >= ?_tstart AND @timestamp < ?_tend
+| WHERE http.response.status_code == 404 AND source.address != "203.0.113.66"
+| STATS nb_404 = COUNT(*), nb_ip = COUNT_DISTINCT(source.address), nb_url = COUNT_DISTINCT(url.original)
+
+d'où ils proviennent:
+FROM logs-web-default
+| WHERE @timestamp >= ?_tstart AND @timestamp < ?_tend
+| WHERE http.response.status_code == 404 AND source.address != "203.0.113.66"
+| STATS nb = COUNT(*) BY user_agent.name
+
+Cette requete montre les URLs recherché qui ont eu un 404 en retour:
+
+FROM logs-web-default
+| WHERE @timestamp >= ?_tstart AND @timestamp < ?_tend
+| WHERE http.response.status_code == 404 AND source.address != "203.0.113.66"
+| STATS nb = COUNT(*) BY url.original | SORT nb DESC | LIMIT 20
+
+Ils sont tous OFF-09*** alors que les offres vont de 1 à 5000.
+
+Chacun recherché 4 ou 6 fois.
+
+La répartition des 404 sur la semaine:
+FROM logs-web-default
+| WHERE @timestamp >= ?_tstart AND @timestamp < ?_tend
+| WHERE http.response.status_code == 404 AND source.address != "203.0.113.66"
+| STATS nb = COUNT(*) BY jour = BUCKET(@timestamp, 1 day) | SORT jour ASC
+
+Montre qu'ils sont bien repartis sur la semaine
+
+En résumé, on dirait que ces codes 404 proviennent d'un problème de qualité du site https://jobs.example.org/recherche,
+ où les URLs périmés n'ont pas été supprimés. Ce sont donc de vrais visiteurs qui suivent des liens morts (offres expirées ou supprimées).
+Et donc ils ne sont pas inquiétants en termes de sécurité du site. 
+
+4.4. Quelles sont les 10 offres les plus consultées (labels.offre_id, requêtes GET avec code 200) ? 
+
+FROM logs-web-default
+| WHERE @timestamp >= ?_tstart AND @timestamp < ?_tend
+| WHERE http.request.method == "GET" AND http.response.status_code == 200
+| WHERE labels.offre_id IS NOT NULL
+| STATS vues = COUNT(*) BY labels.offre_id
+| SORT vues DESC
+| LIMIT 10
+
+Retrouvez leur titre, leur ville et leur contrat dans l'index offres avec une seule requête Dev Tools 
+(indice : requête ids ou terms, TP d'introduction, partie 3).
+
