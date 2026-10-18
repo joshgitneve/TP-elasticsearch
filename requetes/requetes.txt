@@ -173,4 +173,3 @@ FROM logs-web-default
 
 Retrouvez leur titre, leur ville et leur contrat dans l'index offres avec une seule requête Dev Tools 
 (indice : requête ids ou terms, TP d'introduction, partie 3).
-

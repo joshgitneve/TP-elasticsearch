@@ -1,0 +1,42 @@
+4.5 
+
+D'Abord trouve les os utilisés:
+
+FROM logs-web-default
+| STATS nb = COUNT(*) BY user_agent.os.name
+| SORT nb DESC
+
+Puis la part des mobiles dans tout:
+
+FROM logs-web-default
+| EVAL mobile = CASE(user_agent.os.name IN ("iOS", "Android"), 1, 0)
+| STATS total = COUNT(*), mobiles = SUM(mobile)
+| EVAL part_mobile_pct = ROUND(100.0 * mobiles / total, 1)
+
+Top 3 des navigateurs:
+
+FROM logs-web-default
+| STATS nb = COUNT(*) BY user_agent.name
+| SORT nb DESC
+| LIMIT 3
+
+Environ 40 % du trafic provient d’appareils mobiles (iOS et Android). 
+Les trois navigateurs les plus utilisés sont Safari, Mobile Safari, et Chrome, mais les cinq navigateurs 
+sont quasiment à égalité (~20 % chacun). En regroupant les versions desktop et mobile, 
+Chrome et Safari dominent. Les ~300 requêtes « Other » correspondent au robot zgrab identifié.
+
+Partie 5 fait.
+
+Bonus: Bonus — règle d’alerte. Règle de type Elasticsearch query sur la data view Logs web : 
+requête KQL http.response.status_code >= 500, condition count() IS ABOVE 50 FOR THE LAST 5 minutes, 
+vérifiée chaque minute, action Server log (message écrit dans les logs de Kibana).
+
+Pourquoi elle ne se déclenche pas : à chaque exécution, la règle ne compte que les documents dont 
+le @timestamp est compris entre maintenant − 5 min et maintenant. Nos logs datent du 23 au 30/09/2026 : 
+cette fenêtre est toujours vide, donc le compte vaut 0. Une règle surveille le présent et ne rejoue pas 
+l’historique (elle aurait sonné le 28/09 entre 14h00 et 14h45).
+
+Comment la tester : injecter des événements 5xx datés de maintenant dans un data stream de test 
+(logs-web-test, couvert par le motif logs-web-*), via l’API _bulk avec des opérations create. Au-delà de 
+50 événements, la règle passe à l’état Active en moins d’une minute et le message apparaît dans les 
+logs de Kibana ; 5 minutes plus tard, elle repasse à Recovered. On supprime ensuite le data stream de test.
